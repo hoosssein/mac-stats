@@ -223,7 +223,7 @@ struct OverviewView: View {
             .padding(.top, 6)
             RangeChips(selection: model.binding(\.menu.overviewRange))
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(250), spacing: 6), count: cols), spacing: 6) {
-                ForEach(items) { x in OverviewCard(level: level, item: x) }
+                ForEach(items) { x in OverviewCardView(level: level, item: x) }
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 4)
@@ -235,7 +235,7 @@ struct OverviewView: View {
     }
 }
 
-struct OverviewCard: View {
+struct OverviewCardView: View {
     let level: Int
     let item: ItemConfig
 

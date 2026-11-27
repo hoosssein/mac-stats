@@ -14,7 +14,7 @@ public actor HistoryDatabase {
         public init(key: String, tier: Int, bucket: Bucket) { self.key = key; self.tier = tier; self.bucket = bucket }
     }
 
-    public let url: URL
+    public nonisolated let url: URL
     private var db: OpaquePointer?
     private let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 

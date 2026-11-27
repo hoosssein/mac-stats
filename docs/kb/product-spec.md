@@ -175,6 +175,7 @@ Spotlight or Launchpad), or run `open macstats://settings` (`macstats://settings
 
 ## 11. Single instance
 
-- Only one Mac Stats runs at a time, matched by bundle id (so another copy of the app counts too).
+- Only one Mac Stats runs at a time per user. The running one holds an exclusive lock on
+  `~/Library/Application Support/Mac Stats/instance.lock`, so another copy of the app, or the bare binary, counts too.
 - A second launch asks the running one to show Settings and quits at once.
-- If two start at the same moment, the one that started first (or has the lower process id) keeps running.
+- The system releases the lock when the app ends, even after a crash, so a new launch always works.

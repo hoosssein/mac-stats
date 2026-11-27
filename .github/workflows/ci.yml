@@ -71,6 +71,8 @@ jobs:
           STATUS=0
           wait "$PID" || STATUS=$?
           cat build/selftest.txt || echo "No report written"
+          echo "--- app log (unified logging) ---"
+          log show --last 3m --info --predicate 'subsystem == "app.macstats.MacStats"' --style compact | tail -40 || true
           if [ "$DUPLICATE" -ne 0 ]; then exit 1; fi
           exit "$STATUS"
       - name: Upload smoke test results

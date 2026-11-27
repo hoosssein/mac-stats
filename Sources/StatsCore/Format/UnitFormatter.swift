@@ -60,6 +60,7 @@ public struct UnitFormatter: Sendable {
 
     /// Scale labels inside charts: short and without trailing zeros ("5 MB/s", "32 GB", "1 TB").
     public func axisRate(_ bytesPerSecond: Double, network: Bool = false) -> String {
+        if bytesPerSecond <= 0 { return "0" }
         if network && units == .bitsForNetwork {
             let bits = bytesPerSecond * 8
             if bits >= 1e9 { return "\(trim(bits / 1e9)) Gb/s" }
@@ -73,6 +74,7 @@ public struct UnitFormatter: Sendable {
     }
 
     public func axisBytes(_ b: Double) -> String {
+        if b <= 0 { return "0" }
         let k = base
         if b >= k * k * k * k { return "\(trim(b / (k * k * k * k))) T\(infix)B" }
         if b >= k * k * k { return "\(trim(b / (k * k * k))) G\(infix)B" }

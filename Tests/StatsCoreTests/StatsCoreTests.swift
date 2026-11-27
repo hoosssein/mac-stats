@@ -142,6 +142,8 @@ final class FormatTests: XCTestCase {
         XCTAssertEqual(f.axisBytes(32e9), "32 GB")
         XCTAssertEqual(f.axisBytes(1e12), "1 TB")
         XCTAssertEqual(f.axisPercent(50), "50%")
+        XCTAssertEqual(f.axisBytes(0), "0")
+        XCTAssertEqual(f.axisRate(0), "0")
         XCTAssertEqual(f.count(2914), "2,914")
     }
 

@@ -77,7 +77,8 @@ final class SelfTest {
         let frame = panels.frame(level: level)
         let visible = panels.isVisible(level: level)
         let onScreen = NSScreen.screens.contains { $0.frame.intersects(frame) }
-        let ok = visible && frame.width >= 100 && frame.height >= 100 && onScreen
+        // 100 pt wide and 50 pt tall: a breakdown with one row is legitimately short.
+        let ok = visible && frame.width >= 100 && frame.height >= 50 && onScreen
         log("\(ok ? "PASS" : "FAIL") \(name): visible=\(visible) onScreen=\(onScreen) frame=\(NSStringFromRect(frame))")
         if !ok { failures += 1 }
     }

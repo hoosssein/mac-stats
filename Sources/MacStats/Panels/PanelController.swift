@@ -76,6 +76,8 @@ final class PanelController {
 
     /// Opens the panel for a menu bar item. Clicking the open item again closes it.
     func toggle(itemID: String, button: NSStatusBarButton, alt: Bool) {
+        // A pending hover from the old panel must not open a side menu next to the new one.
+        cancelPending(through: PanelController.levels - 1)
         if anchorID == itemID && isOpen { close(); return }
         guard let window = button.window else { return }
         anchorFrame = window.convertToScreen(button.convert(button.bounds, to: nil))

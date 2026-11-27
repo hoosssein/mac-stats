@@ -411,6 +411,7 @@ struct GeneralSettings: View {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "Mac Stats config.json"
         panel.allowedContentTypes = [.json]
+        panel.appearance = model.nsAppearance
         guard panel.runModal() == .OK, let url = panel.url, let data = try? ConfigStore.encode(model.config) else { return }
         try? data.write(to: url, options: .atomic)
     }
@@ -418,6 +419,7 @@ struct GeneralSettings: View {
     private func importConfig() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
+        panel.appearance = model.nsAppearance
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url,
               let data = try? Data(contentsOf: url), let config = try? ConfigStore.decode(data) else { return }

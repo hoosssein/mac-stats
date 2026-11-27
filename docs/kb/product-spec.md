@@ -33,6 +33,8 @@ Defaults for everything below are in [configuration.md](configuration.md).
 | Gauge | A vertical fill bar plus the value. |
 | Two values | Two small stacked lines, such as upload and download. |
 
+- Items are as narrow as possible: each status item is exactly as wide as its drawing (no extra padding),
+  with 2 pt after the label and 3 pt between other parts. The spacing between items is set by macOS.
 - An optional short **label** (for example `CPU`) is drawn before the value.
 - The tiny chart covers a configurable window: last 30 s, 1 min or 2 min.
 - The tiny chart has no scale numbers (it is only 15 points tall).
@@ -170,3 +172,9 @@ Spotlight or Launchpad), or run `open macstats://settings` (`macstats://settings
 - Disk usage is sampled every 10 minutes (it changes slowly), and when a menu opens.
 - When the screen is locked, menu bar drawing pauses (setting). Sampling for history continues.
 - Menu-only items are still sampled, so their history is ready when a menu opens.
+
+## 11. Single instance
+
+- Only one Mac Stats runs at a time, matched by bundle id (so another copy of the app counts too).
+- A second launch asks the running one to show Settings and quits at once.
+- If two start at the same moment, the one that started first (or has the lower process id) keeps running.

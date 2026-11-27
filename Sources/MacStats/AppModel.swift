@@ -44,6 +44,9 @@ final class AppModel {
     @ObservationIgnored private var lastSaved: [String: [Int: Double]] = [:]
     @ObservationIgnored private var lastHistorySave: Double = 0
     @ObservationIgnored private var sparkRecordedAt: [String: Double] = [:]
+    /// Modification time of config.json as last read or written by the app; a different time means a hand edit.
+    @ObservationIgnored private var configFileDate: Date?
+    @ObservationIgnored private var configCheckedAt: Double = 0
     @ObservationIgnored private var onBattery = false
     @ObservationIgnored private var batteryCheckedAt: Double = 0
     /// Called after every config change with the old and new config.
@@ -52,9 +55,11 @@ final class AppModel {
     @ObservationIgnored var onTick: (() -> Void)?
 
     init() {
-        let c = ConfigStore().load()
+        let store = ConfigStore()
+        let c = store.load()
         config = c
         history = HistoryStore(keepDays: c.history.keepDays)
+        configFileDate = store.modificationDate
     }
 
     // MARK: Config
@@ -62,6 +67,11 @@ final class AppModel {
     var units: Units { config.general.units }
 
     func update(_ change: (inout AppConfig) -> Void) {
+        update(save: true, change)
+    }
+
+    /// `save: false` applies a config read from disk without writing it back.
+    func update(save: Bool, _ change: (inout AppConfig) -> Void) {
         let old = config
         var next = config
         change(&next)
@@ -70,7 +80,7 @@ final class AppModel {
         if next.history.keepDays != old.history.keepDays { history.setKeepDays(next.history.keepDays) }
         if next.history.perAppHistory != old.history.perAppHistory { sparks.removeAll() }
         if next.general.openAtLogin != old.general.openAtLogin { applyLoginItem() }
-        scheduleSave()
+        if save { scheduleSave() }
         onConfigChange?(old, next)
     }
 
@@ -90,10 +100,32 @@ final class AppModel {
         saveTask?.cancel()
         let snapshot = config
         let store = self.store
-        saveTask = Task {
+        saveTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
-            try? store.save(snapshot)
+            do {
+                try store.save(snapshot)
+                self?.configFileDate = store.modificationDate
+            } catch {
+                Log.app.error("saving config.json failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    /// Applies hand edits to config.json while the app runs (checked every 2 s).
+    /// Invalid JSON is ignored: the current settings stay and an error is logged.
+    private func reloadConfigIfEdited() {
+        let t = Date().timeIntervalSince1970
+        guard t - configCheckedAt >= 2 else { return }
+        configCheckedAt = t
+        guard let date = store.modificationDate, date != configFileDate else { return }
+        configFileDate = date
+        do {
+            guard let edited = try store.loadIfValid() else { return }
+            Log.app.notice("config.json changed on disk; applying it")
+            update(save: false) { $0 = edited }
+        } catch {
+            Log.app.error("config.json changed but could not be read; keeping current settings: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -261,6 +293,7 @@ final class AppModel {
     }
 
     private func sampleOnce() async {
+        reloadConfigIfEdited()
         let result = await sampler.sample(makeRequest())
         apply(result)
         onTick?()

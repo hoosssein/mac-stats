@@ -358,3 +358,22 @@ final class ReviewFixTests: XCTestCase {
         XCTAssertEqual(Set(after).count, after.count)
     }
 }
+
+final class ConfigFileTests: XCTestCase {
+    func testHandEditsAreReadStrictly() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = ConfigStore(url: dir.appendingPathComponent("config.json"))
+        XCTAssertNil(try store.loadIfValid())
+        XCTAssertNil(store.modificationDate)
+        var c = AppConfig.default
+        c.menu.overviewColumns = 3
+        try store.save(c)
+        XCTAssertEqual(try store.loadIfValid(), c)
+        XCTAssertNotNil(store.modificationDate)
+        try Data("{ not json".utf8).write(to: store.url)
+        XCTAssertThrowsError(try store.loadIfValid())
+        // The lenient loader still gives defaults for a broken file (used only at launch).
+        XCTAssertEqual(store.load(), .default)
+        try? FileManager.default.removeItem(at: dir)
+    }
+}

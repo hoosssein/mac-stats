@@ -23,6 +23,19 @@ public struct ConfigStore: Sendable {
         return (try? ConfigStore.decode(data)) ?? .default
     }
 
+    /// For hand edits: nil when the file does not exist; throws when it is not valid JSON,
+    /// so a typo never resets the settings to defaults.
+    public func loadIfValid() throws -> AppConfig? {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        let data = try Data(contentsOf: url)
+        return try ConfigStore.decode(data)
+    }
+
+    /// The file's last modification time (nil when it does not exist).
+    public var modificationDate: Date? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+    }
+
     public func save(_ config: AppConfig) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try ConfigStore.encode(config).write(to: url, options: .atomic)

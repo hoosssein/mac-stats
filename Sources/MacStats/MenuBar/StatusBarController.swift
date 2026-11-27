@@ -61,12 +61,20 @@ final class StatusBarController: NSObject {
         for (id, status) in items {
             guard let button = status.button else { continue }
             if id == "all" {
-                if force || button.image == nil { button.image = MenuBarRenderer.statsIcon() }
+                if force || button.image == nil {
+                    let icon = MenuBarRenderer.statsIcon()
+                    button.image = icon
+                    status.length = ceil(icon.size.width)
+                }
                 continue
             }
             guard let item = model.config.item(id: id) else { continue }
-            button.image = MenuBarRenderer.image(item: item, presenter: model.presenter(item),
-                                                 spark: model.spark(item), monochrome: monochrome)
+            let image = MenuBarRenderer.image(item: item, presenter: model.presenter(item),
+                                              spark: model.spark(item), monochrome: monochrome)
+            button.image = image
+            // Exactly as wide as the drawing: no extra padding inside the status item.
+            let width = ceil(image.size.width)
+            if status.length != width { status.length = width }
         }
     }
 

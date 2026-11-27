@@ -5,6 +5,11 @@ All settings live in one JSON document:
 The Swift model is `AppConfig` in `Sources/StatsCore/Config/AppConfig.swift` (model layer).
 Unknown or missing keys fall back to the defaults below, so old files keep working.
 
+**Editing by hand.** You can edit `config.json` while the app runs. The app checks the file every 2 seconds and
+applies the change. If the file is not valid JSON, the app keeps its current settings and logs an error
+(see docs/kb/architecture.md "Logging"). A value outside the allowed list falls back to its default, and one bad
+item is skipped without losing the others. The app rewrites the whole file whenever a setting changes in the app.
+
 ## 1. Default configuration
 
 ### 1.1 Items (default order = menu bar order, left to right)

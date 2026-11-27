@@ -72,3 +72,4 @@ so short spikes survive downsampling.
   side menu and the Interfaces breakdown, then the overview (⌥-click), the same way a click does. Each panel must
   be visible, at least 100 × 100 points and on a screen. It writes the report and exits 0 (pass) or 1 (fail).
 - CI runs it on macOS after bundling, takes two screenshots, and uploads the report and screenshots.
+- During the test, CI also starts a second copy of the app and fails if it does not quit by itself (single instance).

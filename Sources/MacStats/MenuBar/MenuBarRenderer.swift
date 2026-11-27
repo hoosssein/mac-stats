@@ -16,7 +16,9 @@ enum MenuBarRenderer {
     static func image(item: ItemConfig, presenter: ItemPresenter, spark: [Double], monochrome: Bool) -> NSImage {
         let label = item.showLabel ? item.label.uppercased() : nil
         let chartColor = monochrome ? NSColor.labelColor : item.color.nsColor
-        let gap: CGFloat = 4
+        // Keep items as narrow as possible: 2 pt after the label, 3 pt between other parts.
+        let gap: CGFloat = 3
+        let labelGap: CGFloat = 2
 
         var parts: [(width: CGFloat, draw: (CGFloat) -> Void)] = []
 
@@ -75,12 +77,15 @@ enum MenuBarRenderer {
             }))
         }
 
-        let total = parts.reduce(0) { $0 + $1.width } + gap * CGFloat(max(0, parts.count - 1))
+        let hasLabel = label != nil
+        let gaps: [CGFloat] = parts.indices.map { i in i == 0 ? 0 : (i == 1 && hasLabel ? labelGap : gap) }
+        let total = ceil(parts.indices.reduce(0) { $0 + parts[$1].width + gaps[$1] })
         let image = NSImage(size: NSSize(width: max(total, 8), height: height), flipped: false) { _ in
             var x: CGFloat = 0
-            for p in parts {
+            for (i, p) in parts.enumerated() {
+                x += gaps[i]
                 p.draw(x)
-                x += p.width + gap
+                x += p.width
             }
             return true
         }

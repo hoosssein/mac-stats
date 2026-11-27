@@ -33,6 +33,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let center = DistributedNotificationCenter.default()
+        observers.append(center.addObserver(forName: SingleInstance.showSettings, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                Log.app.notice("a second launch asked for Settings")
+                self?.settings.show(itemID: nil)
+            }
+        })
         observers.append(center.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.model.screenLocked = true }
         })

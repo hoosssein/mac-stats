@@ -42,6 +42,8 @@ final class SelfTest {
         }
         step(11.5) { self.check(level: 0, "Overview (⌥-click)") }
         step(12.5) {
+            // A duplicate launch (started by CI) may already have opened Settings; close it to test the URL path.
+            for w in NSApp.windows where w.title == "Mac Stats Settings" { w.orderOut(nil) }
             (NSApp.delegate as? AppDelegate)?.application(NSApp, open: [URL(string: "macstats://settings")!])
         }
         step(13) {

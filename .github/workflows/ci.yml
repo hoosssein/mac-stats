@@ -53,13 +53,25 @@ jobs:
           MACSTATS_SELFTEST="$PWD/build/selftest.txt" "$APP" &
           PID=$!
           ( sleep 60; kill "$PID" 2>/dev/null ) &
-          sleep 8
+          # Single instance: a second launch must quit by itself within a few seconds.
+          sleep 2
+          "$APP" &
+          PID2=$!
+          sleep 4
+          DUPLICATE=0
+          if kill -0 "$PID2" 2>/dev/null; then
+            echo "FAIL second instance is still running"; kill "$PID2"; DUPLICATE=1
+          else
+            echo "PASS second instance quit by itself"
+          fi
+          sleep 2
           screencapture -x build/selftest-menus.png || true
           sleep 4
           screencapture -x build/selftest-overview.png || true
           STATUS=0
           wait "$PID" || STATUS=$?
           cat build/selftest.txt || echo "No report written"
+          if [ "$DUPLICATE" -ne 0 ]; then exit 1; fi
           exit "$STATUS"
       - name: Upload smoke test results
         if: always()

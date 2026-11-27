@@ -201,7 +201,7 @@ public struct BreakdownPresenter: Sendable {
             KeyValue("5 min", String(format: "%.2f", c.load5)),
             KeyValue("15 min", String(format: "%.2f", c.load15)),
             KeyValue("Processes", fmt.count(Double(c.processCount))),
-            KeyValue("Threads", fmt.count(Double(c.threadCount))),
+            KeyValue("Threads", c.threadCount > 0 ? fmt.count(Double(c.threadCount)) : "–"),
             KeyValue("Uptime", TimeLabels.duration(c.uptime)),
         ]))
         m.chartKey = key("load")

@@ -24,7 +24,7 @@ When you change behavior or a default, update the KB page in the same change.
 ```bash
 swift build                      # debug build (macOS: all targets; Linux: StatsCore + tests only)
 swift test                       # runs StatsCoreTests
-swift build -c release --arch arm64 --arch x86_64
+swift build -c release --triple arm64-apple-macosx14.0
 scripts/bundle.sh 0.1.0          # creates build/Mac Stats.app and build/MacStats-0.1.0.zip (macOS only)
 ```
 

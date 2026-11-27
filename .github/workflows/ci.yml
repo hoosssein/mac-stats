@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     container: swift:6.0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Test StatsCore
         run: swift test
 
@@ -27,7 +27,7 @@ jobs:
     name: Build, test and bundle on macOS
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Toolchain
         run: |
           sw_vers

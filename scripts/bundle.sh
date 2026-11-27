@@ -12,16 +12,21 @@ cd "$ROOT"
 APP_NAME="Mac Stats"
 BUILD_DIR="$ROOT/build"
 APP="$BUILD_DIR/$APP_NAME.app"
-ARCH_FLAGS=(--arch arm64 --arch x86_64)
+TRIPLES=(arm64-apple-macosx14.0 x86_64-apple-macosx14.0)
 
-echo "==> Building universal release binary"
-swift build -c release "${ARCH_FLAGS[@]}"
-BIN_DIR="$(swift build -c release "${ARCH_FLAGS[@]}" --show-bin-path)"
+# Build each architecture with the native build system, then merge with lipo.
+# (The multi-arch "--arch a --arch b" path does not accept per-target Swift language modes.)
+BINARIES=()
+for triple in "${TRIPLES[@]}"; do
+  echo "==> Building release binary for $triple"
+  swift build -c release --product MacStats --triple "$triple"
+  BINARIES+=("$(swift build -c release --product MacStats --triple "$triple" --show-bin-path)/MacStats")
+done
 
 echo "==> Assembling $APP"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN_DIR/MacStats" "$APP/Contents/MacOS/MacStats"
+lipo -create -output "$APP/Contents/MacOS/MacStats" "${BINARIES[@]}"
 sed -e "s/__VERSION__/$VERSION/g" -e "s/__BUILD__/$BUILD_NUMBER/g" scripts/Info.plist > "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 plutil -lint "$APP/Contents/Info.plist"

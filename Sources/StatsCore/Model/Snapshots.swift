@@ -96,12 +96,15 @@ public struct InterfaceStat: Sendable, Equatable {
     public var linkBitsPerSecond: Double
     public var totalIn: Double
     public var totalOut: Double
+    /// VPN tunnels (utun, ipsec, ppp). Their traffic also passes a physical interface,
+    /// so "all interfaces" leaves them out to avoid counting it twice.
+    public var isTunnel: Bool
 
     public init(bsdName: String, displayName: String, ipv4: String?, downBps: Double, upBps: Double,
-                linkBitsPerSecond: Double, totalIn: Double, totalOut: Double) {
+                linkBitsPerSecond: Double, totalIn: Double, totalOut: Double, isTunnel: Bool = false) {
         self.bsdName = bsdName; self.displayName = displayName; self.ipv4 = ipv4
         self.downBps = downBps; self.upBps = upBps; self.linkBitsPerSecond = linkBitsPerSecond
-        self.totalIn = totalIn; self.totalOut = totalOut
+        self.totalIn = totalIn; self.totalOut = totalOut; self.isTunnel = isTunnel
     }
 }
 
@@ -120,14 +123,15 @@ public struct NetworkSnapshot: Sendable, Equatable {
         self.peakToday = peakToday; self.peakTodayAt = peakTodayAt
     }
 
-    /// Rates for one interface, or the sum of all when `target` is nil.
+    /// Rates for one interface, or the sum of all non-tunnel interfaces when `target` is nil.
     public func rates(target: String?) -> (down: Double, up: Double) {
-        let list = target.map { t in interfaces.filter { $0.bsdName == t } } ?? interfaces
+        let list = target.map { t in interfaces.filter { $0.bsdName == t } } ?? interfaces.filter { !$0.isTunnel }
         return (list.reduce(0) { $0 + $1.downBps }, list.reduce(0) { $0 + $1.upBps })
     }
 
     public var totalsSinceBoot: (down: Double, up: Double) {
-        (interfaces.reduce(0) { $0 + $1.totalIn }, interfaces.reduce(0) { $0 + $1.totalOut })
+        let list = interfaces.filter { !$0.isTunnel }
+        return (list.reduce(0) { $0 + $1.totalIn }, list.reduce(0) { $0 + $1.totalOut })
     }
 
     /// Interfaces that moved data or have an address (the "active" ones).
@@ -275,6 +279,35 @@ public struct FolderScanState: Sendable, Equatable {
     public var duration: Double?
 
     public init() {}
+}
+
+/// What one sampler run produced. Nil fields were not sampled this time.
+public struct SampleResult: Sendable {
+    public var time: Double
+    public var cpu: CPUSnapshot?
+    public var memory: MemorySnapshot?
+    public var network: NetworkSnapshot?
+    public var gpu: GPUSnapshot?
+    public var diskIO: DiskIOSnapshot?
+    public var diskUsage: DiskUsageSnapshot?
+    public var processes: ProcessesSnapshot?
+    public var gpuApps: [GPUAppStat]?
+    /// Thread count, known only when processes were scanned.
+    public var threadCount: Int?
+
+    public init(time: Double) { self.time = time }
+
+    /// The kinds whose totals were sampled in this run.
+    public var sampledKinds: Set<MetricKind> {
+        var k = Set<MetricKind>()
+        if cpu != nil { k.insert(.cpu) }
+        if memory != nil { k.insert(.memory) }
+        if network != nil { k.insert(.network) }
+        if gpu != nil { k.insert(.gpu) }
+        if diskIO != nil { k.insert(.diskIO) }
+        if diskUsage != nil { k.insert(.diskUsage) }
+        return k
+    }
 }
 
 /// Everything the collectors know right now.

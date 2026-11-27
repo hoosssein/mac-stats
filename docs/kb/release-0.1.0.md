@@ -28,7 +28,7 @@
 
 ## Build and ship
 
-- `swift build -c release --arch arm64 --arch x86_64` builds a universal binary.
+- `scripts/bundle.sh` builds `arm64` and `x86_64` release binaries (one `--triple` each) and merges them with `lipo`.
 - `scripts/bundle.sh <version>` creates `build/Mac Stats.app` (Info.plist with `LSUIElement`, version, minimum macOS 14),
   ad-hoc signs it, and zips it to `build/MacStats-<version>.zip`.
 - `.github/workflows/ci.yml` runs build, tests and bundle on every push, and uploads the zip as an artifact.

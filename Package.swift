@@ -33,6 +33,7 @@ targets += [
         linkerSettings: [
             .linkedLibrary("sqlite3"),
             .linkedFramework("IOKit"),
+            .linkedFramework("SystemConfiguration"),
         ]
     ),
     .executableTarget(

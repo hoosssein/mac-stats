@@ -44,6 +44,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         })
     }
 
+    /// Opening the app again while it runs (Finder, Spotlight, Launchpad) opens Settings.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        Log.app.notice("reopened: show settings")
+        settings.show(itemID: nil)
+        return false
+    }
+
+    /// `macstats://settings` opens Settings; `macstats://settings/<item id>` selects that item.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.scheme == "macstats" {
+            Log.app.notice("open url \(url.host ?? "", privacy: .public)")
+            if url.host == "settings" {
+                let itemID = url.pathComponents.count > 1 ? url.pathComponents[1] : nil
+                settings.show(itemID: itemID.flatMap { model.config.item(id: $0) != nil ? $0 : nil })
+            }
+        }
+    }
+
     private func configChanged(_ old: AppConfig, _ new: AppConfig) {
         // Text widths are remembered to stop jitter; forget them when what an item draws changes.
         for item in new.items {

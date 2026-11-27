@@ -26,6 +26,17 @@
     <string>public.app-category.utilities</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>app.macstats.MacStats</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>macstats</string>
+            </array>
+        </dict>
+    </array>
     <key>NSHumanReadableCopyright</key>
     <string>Mac Stats contributors</string>
 </dict>

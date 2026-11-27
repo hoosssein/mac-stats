@@ -148,6 +148,8 @@ Breakdown panel types:
 ## 9. Settings window
 
 Tabs: **Items**, **Menu**, **General**, **History**. Opened by Item settings…, Settings…, or ⌘, while a panel is open.
+It also opens without the menu bar: open the app again while it runs (double-click it in Finder, or open it from
+Spotlight or Launchpad), or run `open macstats://settings` (`macstats://settings/<item id>` selects that item).
 
 - **Items**: the list (Mac Stats icon row first, then items in order) with Menu bar and Menu switches, drag to reorder,
   `+ Add item`, `− Remove`. The detail pane for the selected item: preview, Show in menu bar as, Row in Other metrics,

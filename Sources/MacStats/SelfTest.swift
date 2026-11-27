@@ -5,7 +5,7 @@ import StatsCore
 /// It opens real panels the same way a click does, checks that each one is visible, big enough and on
 /// a screen, writes a report and quits (exit code 0 = pass, 1 = fail).
 /// Timeline (seconds after launch): 3 open CPU menu · 4 open Network side menu · 5 open Interfaces
-/// breakdown · hold for a screenshot · 10.5 open the overview (⌥-click Memory) · 13.5 quit.
+/// breakdown · hold for a screenshot · 10.5 open the overview (⌥-click Memory) · 12.5 open Settings by URL · 13.5 quit.
 @MainActor
 final class SelfTest {
     static var reportPath: String? { ProcessInfo.processInfo.environment["MACSTATS_SELFTEST"] }
@@ -41,6 +41,14 @@ final class SelfTest {
             self.open("mem", alt: true)
         }
         step(11.5) { self.check(level: 0, "Overview (⌥-click)") }
+        step(12.5) {
+            (NSApp.delegate as? AppDelegate)?.application(NSApp, open: [URL(string: "macstats://settings")!])
+        }
+        step(13) {
+            let shown = NSApp.windows.contains { $0.title == "Mac Stats Settings" && $0.isVisible }
+            self.log("\(shown ? "PASS" : "FAIL") Settings opened by macstats://settings")
+            if !shown { self.failures += 1 }
+        }
         step(13.5) {
             self.panels.close()
             self.finish()

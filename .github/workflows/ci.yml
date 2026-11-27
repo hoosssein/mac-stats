@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core-linux:
+    name: StatsCore on Linux
+    runs-on: ubuntu-latest
+    container: swift:6.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test StatsCore
+        run: swift test
+
+  macos:
+    name: Build, test and bundle on macOS
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+      - name: Build (debug)
+        run: swift build
+      - name: Test
+        run: swift test
+      - name: Bundle universal app
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: scripts/bundle.sh "0.1.0-ci.${{ github.run_number }}"
+      - name: Upload app
+        uses: actions/upload-artifact@v4
+        with:
+          name: MacStats-ci-${{ github.run_number }}
+          path: build/*.zip
+          if-no-files-found: error

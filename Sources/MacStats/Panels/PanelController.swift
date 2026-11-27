@@ -52,7 +52,7 @@ final class PanelController {
 
     @ObservationIgnored private let model: AppModel
     @ObservationIgnored private var panels: [MenuPanel] = []
-    @ObservationIgnored private var hosts: [NSHostingView<AnyView>?] = Array(repeating: nil, count: PanelController.levels)
+    @ObservationIgnored private var hosts: [PanelHostingView?] = Array(repeating: nil, count: PanelController.levels)
     @ObservationIgnored private var directions: [Int] = Array(repeating: 1, count: PanelController.levels)
     @ObservationIgnored private var timers: [Timer?] = Array(repeating: nil, count: PanelController.levels)
     @ObservationIgnored private var pendingRow: [String?] = Array(repeating: nil, count: PanelController.levels)
@@ -151,7 +151,8 @@ final class PanelController {
         let root = AnyView(PanelRoot(level: level, content: content)
             .environment(model)
             .environment(self))
-        let host = NSHostingView(rootView: root)
+        let host = PanelHostingView(rootView: root)
+        host.onSizeChange = { [weak self] size in self?.contentSizeChanged(level: level, size: size) }
         // The panel size comes from the SwiftUI content's ideal size, so the hosting view must report it.
         // (With no sizing options the fitting size is zero and the panel is invisible.)
         host.sizingOptions = [.intrinsicContentSize]
@@ -187,6 +188,11 @@ final class PanelController {
     /// Keeps the panel's top edge fixed when its content changes size.
     func contentSizeChanged(level: Int, size: CGSize) {
         guard contents[level] != nil else { return }
+        // Ignore empty sizes reported before SwiftUI has laid out the content; they made panels 0 x 0.
+        guard size.width >= 10, size.height >= 10, size.width.isFinite, size.height.isFinite else {
+            Log.panels.debug("ignored size \(Int(size.width))x\(Int(size.height)) for level \(level)")
+            return
+        }
         let panel = panels[level]
         let old = panel.frame
         guard abs(old.width - size.width) > 0.5 || abs(old.height - size.height) > 0.5 else { return }
@@ -344,10 +350,20 @@ final class PanelController {
     }
 }
 
-/// Reports a panel's content size so the controller can resize the window.
-private struct PanelSizeKey: PreferenceKey {
-    static let defaultValue: CGSize = .zero
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
+/// Hosts a panel's SwiftUI content and reports when its ideal size changes, so the window can follow it.
+final class PanelHostingView: NSHostingView<AnyView> {
+    var onSizeChange: ((CGSize) -> Void)?
+
+    override func invalidateIntrinsicContentSize() {
+        super.invalidateIntrinsicContentSize()
+        // Read the new size after SwiftUI finishes this update.
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.onSizeChange?(self.intrinsicContentSize)
+            }
+        }
+    }
 }
 
 /// UI layer: the SwiftUI root of one panel level.
@@ -370,10 +386,6 @@ struct PanelRoot: View {
             }
         }
         .fixedSize()
-        .background(GeometryReader { g in Color.clear.preference(key: PanelSizeKey.self, value: g.size) })
-        .onPreferenceChange(PanelSizeKey.self) { size in
-            MainActor.assumeIsolated { panels.contentSizeChanged(level: level, size: size) }
-        }
         .onHover { inside in if inside { panels.pointerEntered(level: level) } }
     }
 }

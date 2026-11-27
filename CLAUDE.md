@@ -48,6 +48,7 @@ On Linux, build only the core: `swift build --target StatsCore` and `swift test`
 - Swift Charts gets slow above a few hundred points; always downsample to ≤ 300.
 - Menu bar images must be redrawn when the menu bar appearance changes.
 - There is no Xcode project. Do not add one; use SwiftPM.
-- `NSHostingView.sizingOptions = []` makes `fittingSize` zero, so a panel opens 0 × 0 and looks like nothing happened.
-  Keep `.intrinsicContentSize`; CI's UI smoke test catches this.
+- A panel that is 0 × 0 looks like "nothing happens on click". Two causes seen so far: `NSHostingView.sizingOptions = []`
+  (fitting size is zero) and applying a zero size reported before SwiftUI lays out. Keep `.intrinsicContentSize`, size the
+  window from `PanelHostingView`'s intrinsic size, and ignore sizes under 10 pt. CI's UI smoke test catches this.
 - Log only app internals. Mark values `privacy: .public` only when they hold no personal data.

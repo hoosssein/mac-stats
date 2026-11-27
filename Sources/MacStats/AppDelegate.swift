@@ -1,4 +1,5 @@
 import AppKit
+import os
 import StatsCore
 
 /// UI layer: wires the model, the menu bar, the panels and the settings window together.
@@ -9,8 +10,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var panels = PanelController(model: model)
     private lazy var settings = SettingsWindowController(model: model)
     private var observers: [NSObjectProtocol] = []
+    private var selfTest: SelfTest?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        let osVersion = ProcessInfo.processInfo.operatingSystemVersionString
+        let screens = NSScreen.screens.map { $0.frame.logText }.joined(separator: "; ")
+        Log.app.notice("Mac Stats \(version, privacy: .public) started on macOS \(osVersion, privacy: .public); screens: \(screens, privacy: .public)")
         statusBar.onClick = { [weak self] id, button, alt in
             self?.panels.toggle(itemID: id, button: button, alt: alt)
         }
@@ -21,6 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusBar.rebuild()
         model.start()
+        if let path = SelfTest.reportPath {
+            selfTest = SelfTest(panels: panels, statusBar: statusBar, reportPath: path)
+            selfTest?.run()
+        }
 
         let center = DistributedNotificationCenter.default()
         observers.append(center.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in

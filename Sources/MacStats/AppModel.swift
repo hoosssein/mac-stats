@@ -1,4 +1,5 @@
 import AppKit
+import os
 import Observation
 import ServiceManagement
 import StatsCore
@@ -109,8 +110,8 @@ final class AppModel {
     }
 
     func applyLoginItem() {
-        // Only an app bundle can register itself as a login item.
-        guard Bundle.main.bundlePath.hasSuffix(".app") else { return }
+        // Only an app bundle can register itself as a login item. The CI self-test never registers.
+        guard Bundle.main.bundlePath.hasSuffix(".app"), SelfTest.reportPath == nil else { return }
         let service = SMAppService.mainApp
         do {
             if config.general.openAtLogin {
@@ -119,7 +120,7 @@ final class AppModel {
                 try service.unregister()
             }
         } catch {
-            NSLog("Mac Stats: login item change failed: \(error.localizedDescription)")
+            Log.app.error("login item change failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -237,6 +238,7 @@ final class AppModel {
             }
         }
         historyFileSize = await database.fileSize()
+        Log.history.notice("loaded \(rows.count) saved history buckets for \(grouped.count) series")
     }
 
     private func makeRequest() -> Sampler.Request {
@@ -265,6 +267,10 @@ final class AppModel {
     }
 
     private func apply(_ r: SampleResult) {
+        if live.time == 0 {
+            let kinds = r.sampledKinds.map(\.rawValue).sorted().joined(separator: ", ")
+            Log.sampling.notice("first sample: \(kinds, privacy: .public)")
+        }
         now = r.time
         if let c = r.cpu { live.cpu = c }
         if let m = r.memory { live.memory = m }

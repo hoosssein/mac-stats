@@ -47,3 +47,26 @@ jobs:
           name: MacStats-ci-${{ github.run_number }}
           path: build/*.zip
           if-no-files-found: error
+      - name: UI smoke test (opens real panels, checks they are visible)
+        run: |
+          APP="build/Mac Stats.app/Contents/MacOS/MacStats"
+          MACSTATS_SELFTEST="$PWD/build/selftest.txt" "$APP" &
+          PID=$!
+          ( sleep 60; kill "$PID" 2>/dev/null ) &
+          sleep 8
+          screencapture -x build/selftest-menus.png || true
+          sleep 4
+          screencapture -x build/selftest-overview.png || true
+          STATUS=0
+          wait "$PID" || STATUS=$?
+          cat build/selftest.txt || echo "No report written"
+          exit "$STATUS"
+      - name: Upload smoke test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selftest-${{ github.run_number }}
+          path: |
+            build/selftest.txt
+            build/selftest-*.png
+          if-no-files-found: ignore

@@ -1,4 +1,5 @@
 import AppKit
+import os
 import StatsCore
 
 /// UI layer: one `NSStatusItem` per menu bar item, plus the Mac Stats icon when needed
@@ -45,6 +46,7 @@ final class StatusBarController: NSObject {
             items[id] = item
         }
         order = wanted
+        Log.menuBar.notice("menu bar items: \(wanted.joined(separator: ", "), privacy: .public)")
         // Redraw at once when the menu bar switches between light and dark.
         appearanceObservation = items.values.first?.button?.observe(\.effectiveAppearance) { [weak self] _, _ in
             MainActor.assumeIsolated { self?.redraw(force: true) }
@@ -78,6 +80,8 @@ final class StatusBarController: NSObject {
     @objc private func clicked(_ sender: NSStatusBarButton) {
         guard let id = sender.identifier?.rawValue else { return }
         let alt = NSApp.currentEvent?.modifierFlags.contains(.option) ?? false
+        let frame = sender.window?.frame.logText ?? "no window"
+        Log.menuBar.notice("click \(id, privacy: .public) option=\(alt) button window \(frame, privacy: .public)")
         onClick?(id, sender, alt)
     }
 

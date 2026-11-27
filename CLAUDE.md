@@ -26,6 +26,8 @@ swift build                      # debug build (macOS: all targets; Linux: Stats
 swift test                       # runs StatsCoreTests
 swift build -c release --triple arm64-apple-macosx14.0
 scripts/bundle.sh 0.1.0          # creates build/Mac Stats.app and build/MacStats-0.1.0.zip (macOS only)
+MACSTATS_SELFTEST=/tmp/selftest.txt "build/Mac Stats.app/Contents/MacOS/MacStats"   # UI smoke test (macOS)
+log show --last 30m --info --predicate 'subsystem == "app.macstats.MacStats"'      # app logs
 ```
 
 On Linux, build only the core: `swift build --target StatsCore` and `swift test`.
@@ -46,3 +48,6 @@ On Linux, build only the core: `swift build --target StatsCore` and `swift test`
 - Swift Charts gets slow above a few hundred points; always downsample to ≤ 300.
 - Menu bar images must be redrawn when the menu bar appearance changes.
 - There is no Xcode project. Do not add one; use SwiftPM.
+- `NSHostingView.sizingOptions = []` makes `fittingSize` zero, so a panel opens 0 × 0 and looks like nothing happened.
+  Keep `.intrinsicContentSize`; CI's UI smoke test catches this.
+- Log only app internals. Mark values `privacy: .public` only when they hold no personal data.

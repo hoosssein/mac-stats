@@ -57,3 +57,18 @@ so short spikes survive downsampling.
 - CPU: under 1% on average with default settings.
 - Points per chart: at most 300.
 - History on disk: about 15–40 MB for 30 days.
+
+## Logging
+
+- The app logs through Apple's unified logging (`os.Logger`), subsystem `app.macstats.MacStats`,
+  categories `app`, `menubar`, `panels`, `history`, `sampling` (`Sources/MacStats/Support/Log.swift`).
+- Logged: launch (version, macOS, screens), menu bar items, clicks, panel show/place/close with sizes,
+  history load counts, first sample, errors. Never process names, file paths or other personal data.
+- Collect a log: `log show --last 30m --info --predicate 'subsystem == "app.macstats.MacStats"'`.
+
+## UI smoke test
+
+- `MACSTATS_SELFTEST=<report file>` runs `Sources/MacStats/SelfTest.swift`: it opens the CPU menu, the Network
+  side menu and the Interfaces breakdown, then the overview (⌥-click), the same way a click does. Each panel must
+  be visible, at least 100 × 100 points and on a screen. It writes the report and exits 0 (pass) or 1 (fail).
+- CI runs it on macOS after bundling, takes two screenshots, and uploads the report and screenshots.

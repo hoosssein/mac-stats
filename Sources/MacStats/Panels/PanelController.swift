@@ -1,4 +1,5 @@
 import AppKit
+import os
 import Observation
 import StatsCore
 import SwiftUI
@@ -67,6 +68,10 @@ final class PanelController {
 
     var isOpen: Bool { contents[0] != nil }
 
+    /// For the self-test: a level's window frame and whether it is on screen.
+    func frame(level: Int) -> NSRect { panels[level].frame }
+    func isVisible(level: Int) -> Bool { contents[level] != nil && panels[level].isVisible }
+
     /// Applies the Appearance setting to the panels (menu bar items are not changed).
     func applyAppearance() {
         for p in panels { p.appearance = model.nsAppearance }
@@ -79,7 +84,10 @@ final class PanelController {
         // A pending hover from the old panel must not open a side menu next to the new one.
         cancelPending(through: PanelController.levels - 1)
         if anchorID == itemID && isOpen { close(); return }
-        guard let window = button.window else { return }
+        guard let window = button.window else {
+            Log.panels.error("cannot open \(itemID, privacy: .public): the menu bar button has no window")
+            return
+        }
         anchorFrame = window.convertToScreen(button.convert(button.bounds, to: nil))
         anchorID = itemID
         let overview = (model.config.menu.clickOpens == .overview) != alt
@@ -101,6 +109,7 @@ final class PanelController {
     }
 
     func close() {
+        if isOpen { Log.panels.notice("close all panels") }
         for i in 0..<PanelController.levels { closeLevel(i) }
         anchorID = nil
         statusBar?.highlight(nil)
@@ -143,7 +152,9 @@ final class PanelController {
             .environment(model)
             .environment(self))
         let host = NSHostingView(rootView: root)
-        host.sizingOptions = []
+        // The panel size comes from the SwiftUI content's ideal size, so the hosting view must report it.
+        // (With no sizing options the fitting size is zero and the panel is invisible.)
+        host.sizingOptions = [.intrinsicContentSize]
         let effect = NSVisualEffectView()
         effect.material = .menu
         effect.state = .active
@@ -152,7 +163,11 @@ final class PanelController {
         effect.layer?.cornerRadius = 10
         effect.layer?.masksToBounds = true
         host.translatesAutoresizingMaskIntoConstraints = true
-        let size = host.fittingSize
+        var size = host.fittingSize
+        if size.width < 10 || size.height < 10 { size = host.intrinsicContentSize }
+        if !(size.width >= 10 && size.height >= 10) || !size.width.isFinite || !size.height.isFinite {
+            size = CGSize(width: Theme.menuWidth, height: 400)
+        }
         effect.frame = NSRect(origin: .zero, size: size)
         host.frame = effect.bounds
         host.autoresizingMask = [.width, .height]
@@ -165,6 +180,7 @@ final class PanelController {
         if level == 0 { placeRoot(size: size) }
         panel.orderFrontRegardless()
         if level == 0 { panel.makeKey() }
+        Log.panels.notice("show level \(level) \(String(describing: content), privacy: .public): measured \(Int(size.width))x\(Int(size.height)), frame \(panel.frame.logText, privacy: .public), visible=\(panel.isVisible)")
         syncBreakdowns()
     }
 
@@ -178,6 +194,7 @@ final class PanelController {
         if let screen = screenFrame(for: old), frame.minY < screen.minY { frame.origin.y = screen.minY }
         if level == 0 { frame.origin.x = rootX(width: size.width) }
         panel.setFrame(frame, display: true)
+        Log.panels.debug("resize level \(level) to \(frame.logText, privacy: .public)")
     }
 
     private func screenFrame(for rect: NSRect) -> NSRect? {
@@ -212,6 +229,7 @@ final class PanelController {
         if y < screen.minY { y = screen.minY }
         if y + size.height > screen.maxY { y = screen.maxY - size.height }
         panels[i].setFrameOrigin(NSPoint(x: x, y: y))
+        Log.panels.notice("place level \(i) \(dir == 1 ? "right" : "left", privacy: .public) at \(self.panels[i].frame.logText, privacy: .public)")
     }
 
     // MARK: Rows

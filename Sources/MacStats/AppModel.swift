@@ -39,9 +39,10 @@ final class AppModel {
     @ObservationIgnored private var netTopTask: Task<Void, Never>?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var forceDiskUsage = true
-    @ObservationIgnored private var lastSaved: [Int: Double] = [:]
+    /// Newest saved bucket start per series and tier (series close buckets at different times).
+    @ObservationIgnored private var lastSaved: [String: [Int: Double]] = [:]
     @ObservationIgnored private var lastHistorySave: Double = 0
-    @ObservationIgnored private var threadCount = 0
+    @ObservationIgnored private var sparkRecordedAt: [String: Double] = [:]
     @ObservationIgnored private var onBattery = false
     @ObservationIgnored private var batteryCheckedAt: Double = 0
     /// Called after every config change with the old and new config.
@@ -67,7 +68,6 @@ final class AppModel {
         config = next
         if next.history.keepDays != old.history.keepDays { history.setKeepDays(next.history.keepDays) }
         if next.history.perAppHistory != old.history.perAppHistory { sparks.removeAll() }
-        if next.general.appearance != old.general.appearance { applyAppearance() }
         if next.general.openAtLogin != old.general.openAtLogin { applyLoginItem() }
         scheduleSave()
         onConfigChange?(old, next)
@@ -98,11 +98,13 @@ final class AppModel {
 
     func replaceConfig(_ c: AppConfig) { update { $0 = c } }
 
-    func applyAppearance() {
+    /// The appearance for the app's own panels and windows. Nil follows the system.
+    /// The menu bar items are not changed: they always follow the menu bar (docs/kb/product-spec.md section 8).
+    var nsAppearance: NSAppearance? {
         switch config.general.appearance {
-        case .system: NSApp.appearance = nil
-        case .light: NSApp.appearance = NSAppearance(named: .aqua)
-        case .dark: NSApp.appearance = NSAppearance(named: .darkAqua)
+        case .system: return nil
+        case .light: return NSAppearance(named: .aqua)
+        case .dark: return NSAppearance(named: .darkAqua)
         }
     }
 
@@ -141,9 +143,9 @@ final class AppModel {
 
     func points(_ key: String, range: ChartRange) -> [ChartPoint] { history.points(key, range: range, now: now) }
 
-    /// Values for the menu bar sparkline: one per second for the chart window.
+    /// Values for the menu bar sparkline: the samples of the chart window (last 30 s, 1 min or 2 min).
     func spark(_ item: ItemConfig) -> [Double] {
-        history.recent(HistoryStore.key(item: item.id, series: "main"), count: item.menuBarChartSeconds)
+        history.recent(HistoryStore.key(item: item.id, series: "main"), seconds: Double(item.menuBarChartSeconds), now: now)
     }
 
     func appSpark(_ key: String?) -> [Double] {
@@ -163,8 +165,16 @@ final class AppModel {
                         guard let netTop = self?.netTop else { return }
                         let apps = await netTop.sample()
                         guard !Task.isCancelled, let self else { return }
-                        self.live.netApps = apps
-                        self.recordSparks("net", Dictionary(apps.map { ($0.name, $0.downBps + $0.upBps) }, uniquingKeysWith: +))
+                        if let apps {
+                            self.live.netAppsAvailable = true
+                            self.live.netApps = apps
+                            self.recordSparks("net", Dictionary(apps.map { ($0.name, $0.downBps + $0.upBps) }, uniquingKeysWith: +))
+                        } else {
+                            // nettop failed: say so, and wait before trying again.
+                            self.live.netAppsAvailable = false
+                            self.live.netApps = []
+                        }
+                        try? await Task.sleep(for: .seconds(apps == nil ? 3 : 1))
                     }
                 }
             }
@@ -172,6 +182,7 @@ final class AppModel {
             netTopTask?.cancel()
             netTopTask = nil
             live.netApps = nil
+            live.netAppsAvailable = true
         }
         if !kinds.contains(.gpuApps) { live.gpuApps = nil }
     }
@@ -204,7 +215,6 @@ final class AppModel {
     // MARK: Sampling loop
 
     func start() {
-        applyAppearance()
         applyLoginItem()
         loopTask = Task { [weak self] in
             await self?.loadHistory()
@@ -223,7 +233,7 @@ final class AppModel {
         for (key, tiers) in grouped {
             for (tier, buckets) in tiers {
                 history.restore(key: key, tier: tier, buckets: buckets)
-                lastSaved[tier] = max(lastSaved[tier] ?? 0, buckets.last?.t ?? 0)
+                if let t = buckets.last?.t { lastSaved[key, default: [:]][tier] = t }
             }
         }
         historyFileSize = await database.fileSize()
@@ -256,8 +266,7 @@ final class AppModel {
 
     private func apply(_ r: SampleResult) {
         now = r.time
-        if let t = r.threadCount { threadCount = t }
-        if var c = r.cpu { c.threadCount = threadCount; live.cpu = c }
+        if let c = r.cpu { live.cpu = c }
         if let m = r.memory { live.memory = m }
         if let n = r.network { live.network = n }
         if let g = r.gpu { live.gpu = g }
@@ -290,10 +299,14 @@ final class AppModel {
         saveHistoryIfDue()
     }
 
+    /// Per-app sparklines keep one point every 5 s, so the buffer covers exactly the chosen window.
     private func recordSparks(_ group: String, _ values: [String: Double]) {
         guard config.history.perAppHistory != .off || !openBreakdowns.isEmpty else { return }
+        let t = Date().timeIntervalSince1970
+        guard t - (sparkRecordedAt[group] ?? 0) >= 4.5 else { return }
+        sparkRecordedAt[group] = t
         let seconds = max(config.history.perAppHistory.seconds, 120)
-        let capacity = Int(seconds / 2)
+        let capacity = Int(seconds / 5)
         if sparks[group]?.capacity != capacity { sparks[group] = AppSparkStore(capacity: capacity) }
         sparks[group]!.record(values, keepTop: 20)
     }
@@ -302,16 +315,10 @@ final class AppModel {
         guard now - lastHistorySave >= 30 else { return }
         lastHistorySave = now
         var rows: [HistoryDatabase.Row] = []
-        var newest = lastSaved
-        for (key, series) in history.series {
-            for tier in 1..<series.specs.count {
-                for b in series.completedBuckets(tier: tier, after: lastSaved[tier] ?? 0) {
-                    rows.append(HistoryDatabase.Row(key: key, tier: tier, bucket: b))
-                    newest[tier] = max(newest[tier] ?? 0, b.t)
-                }
-            }
+        for u in history.unsaved(after: lastSaved) {
+            rows.append(HistoryDatabase.Row(key: u.key, tier: u.tier, bucket: u.bucket))
+            lastSaved[u.key, default: [:]][u.tier] = max(lastSaved[u.key]?[u.tier] ?? -.infinity, u.bucket.t)
         }
-        lastSaved = newest
         let db = database
         let keepDays = config.history.keepDays
         let t = now

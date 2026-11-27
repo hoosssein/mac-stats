@@ -46,7 +46,7 @@ public actor Sampler {
         }
         if due(.cpu) {
             last[.cpu] = now
-            result.cpu = cpu.sample(threadCount: processes.threadCount)
+            result.cpu = cpu.sample()
             if let c = result.cpu { latestCPUTotal = c.total }
         }
         if due(.memory) { last[.memory] = now; result.memory = memory.sample() }
@@ -60,7 +60,6 @@ public actor Sampler {
         if let every = request.processInterval, now - lastProcesses >= every - 0.2 {
             lastProcesses = now
             result.processes = processes.sample(totalCPU: latestCPUTotal, cores: max(1, cpu.coreCount))
-            result.threadCount = processes.threadCount
         }
         if request.gpuApps, now - lastGPUApps >= 1.8 {
             lastGPUApps = now
@@ -76,7 +75,8 @@ public actor NetTopSampler {
 
     public init() {}
 
-    public func sample() -> [NetAppStat] { collector.sample() }
+    /// Nil when `nettop` is not available.
+    public func sample() -> [NetAppStat]? { collector.sample() }
 }
 
 /// Data layer: power source and screen lock.

@@ -45,6 +45,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if old.general.units != new.general.units {
             for item in new.items { MenuBarRenderer.resetWidths(for: item.id) }
         }
+        if old.general.appearance != new.general.appearance {
+            panels.applyAppearance()
+            settings.applyAppearance()
+        }
         statusBar.rebuild()
         // Close the panels if their menu bar item is gone.
         if let anchor = panels.anchorID {

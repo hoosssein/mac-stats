@@ -11,7 +11,6 @@ final class ProcessCollector {
     private var previous: [Int32: Reading] = [:]
     private var previousTime: Double = 0
     private var names: [Int32: String] = [:]
-    private(set) var threadCount = 0
 
     /// `totalCPU` is the machine's busy percent (0–100) and `cores` the core count,
     /// used to compute "System and other users". Returns nil on the first call.
@@ -20,7 +19,6 @@ final class ProcessCollector {
         let pids = listPIDs()
         var current: [Int32: Reading] = [:]
         var footprints: [Int32: Double] = [:]
-        var threads = 0
         for pid in pids where pid > 0 {
             var info = rusage_info_v4()
             let rc = withUnsafeMutablePointer(to: &info) { ptr in
@@ -33,13 +31,8 @@ final class ProcessCollector {
             current[pid] = Reading(cpuNanos: cpu, readBytes: Double(info.ri_diskio_bytesread),
                                    writeBytes: Double(info.ri_diskio_byteswritten))
             footprints[pid] = Double(info.ri_phys_footprint)
-
-            var task = proc_taskinfo()
-            let size = Int32(MemoryLayout<proc_taskinfo>.size)
-            if proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &task, size) == size { threads += Int(task.pti_threadnum) }
             if names[pid] == nil { names[pid] = processName(pid) }
         }
-        threadCount = threads
 
         let dt = now - previousTime
         let firstRound = previousTime == 0 || dt > 30
@@ -94,21 +87,24 @@ final class ProcessCollector {
 /// Data layer: per-app network traffic from `nettop` (experimental, tool output).
 /// Runs only while the Network → Top apps panel is open. Blocks about one second.
 final class NetTopCollector {
-    func sample() -> [NetAppStat] {
+    /// Nil when `nettop` could not run or printed nothing we understand (not available on this Mac).
+    func sample() -> [NetAppStat]? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
         process.arguments = ["-P", "-L", "2", "-s", "1", "-d", "-x", "-n", "-J", "bytes_in,bytes_out"]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
-        do { try process.run() } catch { return [] }
+        do { try process.run() } catch { return nil }
         let deadline = DispatchTime.now() + .seconds(5)
         DispatchQueue.global().asyncAfter(deadline: deadline) { [weak process] in
             if let p = process, p.isRunning { p.terminate() }
         }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        return NetTopCollector.parse(String(decoding: data, as: UTF8.self))
+        let text = String(decoding: data, as: UTF8.self)
+        guard process.terminationStatus == 0, text.contains("bytes_in") else { return nil }
+        return NetTopCollector.parse(text)
     }
 
     /// Parses `nettop -L` CSV. Each sample block starts with a header line that contains "bytes_in".

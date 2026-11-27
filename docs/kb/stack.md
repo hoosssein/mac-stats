@@ -9,7 +9,7 @@
 | Charts in panels | Swift Charts | Built in. Hover uses a chart overlay with `ChartProxy` and a crosshair. |
 | Menu bar sparklines | Core Graphics → `NSImage` | Redrawn once per second; much cheaper than SwiftUI in the status bar. |
 | UI state | Observation (`@Observable`) on the main actor | Views redraw only when the values they read change. |
-| Appearance | `NSApp.appearance` = `nil` (system), `.aqua` or `.darkAqua` | SwiftUI and Swift Charts follow it. Menu bar images redraw on appearance change. |
+| Appearance | `appearance` on the app's panels and settings window = `nil` (system), `.aqua` or `.darkAqua` | Forces only the app's menus and windows; menu bar items keep following the menu bar. SwiftUI and Swift Charts follow it. Menu bar images redraw when the menu bar's `effectiveAppearance` changes. |
 | History | In-memory tiered ring buffers + SQLite | Fast range reads; survives restarts. See deviation D2. |
 | Settings | SwiftUI views in an `NSWindow` + one `Codable` config (`AppConfig`) | One JSON document. Easy to export, import and reset. |
 | Open at login | `SMAppService.mainApp` | Built into macOS 13+. |

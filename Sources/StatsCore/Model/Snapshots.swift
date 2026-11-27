@@ -292,8 +292,6 @@ public struct SampleResult: Sendable {
     public var diskUsage: DiskUsageSnapshot?
     public var processes: ProcessesSnapshot?
     public var gpuApps: [GPUAppStat]?
-    /// Thread count, known only when processes were scanned.
-    public var threadCount: Int?
 
     public init(time: Double) { self.time = time }
 
@@ -322,6 +320,8 @@ public struct LiveState: Sendable, Equatable {
     public var processes: ProcessesSnapshot?
     /// Nil = not sampled yet (panel not open). Empty = sampled, nothing found or not available.
     public var netApps: [NetAppStat]?
+    /// False when `nettop` could not run (experimental source failed quietly).
+    public var netAppsAvailable = true
     public var gpuApps: [GPUAppStat]?
 
     public init() {}

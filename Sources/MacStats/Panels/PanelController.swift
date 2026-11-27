@@ -67,6 +67,11 @@ final class PanelController {
 
     var isOpen: Bool { contents[0] != nil }
 
+    /// Applies the Appearance setting to the panels (menu bar items are not changed).
+    func applyAppearance() {
+        for p in panels { p.appearance = model.nsAppearance }
+    }
+
     // MARK: Open and close
 
     /// Opens the panel for a menu bar item. Clicking the open item again closes it.
@@ -85,6 +90,9 @@ final class PanelController {
             content = .itemMenu(itemID: itemID, withOthers: true, back: false)
         }
         model.panelOpened()
+        // Switching to another item closes the old side panels first.
+        for i in 1..<PanelController.levels { closeLevel(i) }
+        highlighted[0] = nil
         show(content, at: 0)
         statusBar?.highlight(itemID)
         installMonitors()
@@ -148,6 +156,7 @@ final class PanelController {
         host.autoresizingMask = [.width, .height]
         effect.addSubview(host)
         let panel = panels[level]
+        panel.appearance = model.nsAppearance
         panel.contentView = effect
         hosts[level] = host
         panel.setContentSize(size)

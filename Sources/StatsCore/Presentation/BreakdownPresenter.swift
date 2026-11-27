@@ -118,10 +118,11 @@ public struct BreakdownPresenter: Sendable {
 
     /// Cuts a list to the item's "Rows in breakdown panels" and sets the "+ N more" count.
     private func limited(_ m: BreakdownModel) -> BreakdownModel {
-        guard case .list(let rows) = m.content, rows.count > item.breakdownRows else { return m }
+        let limit = max(1, item.breakdownRows)
+        guard case .list(let rows) = m.content, rows.count > limit else { return m }
         var out = m
-        out.content = .list(Array(rows.prefix(item.breakdownRows)))
-        out.moreCount = rows.count - item.breakdownRows
+        out.content = .list(Array(rows.prefix(limit)))
+        out.moreCount = rows.count - limit
         return out
     }
 
@@ -276,6 +277,7 @@ public struct BreakdownPresenter: Sendable {
     private var netApps: BreakdownModel {
         var m = BreakdownModel(title: "Top apps", subtitle: "download + upload · last 1 s", content: .list([]))
         m.note = "Comes from nettop. It runs only while this panel is open."
+        if !state.netAppsAvailable { m.emptyText = "Not available on this Mac."; return m }
         guard let apps = state.netApps else { m.emptyText = waiting; return m }
         let rows = apps.sorted { ($0.downBps + $0.upBps) > ($1.downBps + $1.upBps) }.map { a -> ListRow in
             let v = a.downBps >= a.upBps ? "↓ " + fmt.rate(a.downBps, network: true) : "↑ " + fmt.rate(a.upBps, network: true)

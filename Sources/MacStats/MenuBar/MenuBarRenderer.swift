@@ -122,8 +122,7 @@ enum MenuBarRenderer {
             return
         }
         if bars {
-            let count = Int(rect.width / 3)
-            let vals = Array(values.suffix(count))
+            let vals = resampleMax(values, to: Int(rect.width / 3))
             color.setFill()
             for (i, v) in vals.enumerated() {
                 let h = Swift.max(1, CGFloat(Swift.min(1, v / maxV)) * rect.height)

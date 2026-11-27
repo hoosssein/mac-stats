@@ -19,6 +19,17 @@ extension ItemColor {
     var color: Color { Color(nsColor: nsColor) }
 }
 
+/// Merges values into at most `n` buckets, keeping each bucket's peak (for bar sparklines).
+func resampleMax(_ values: [Double], to n: Int) -> [Double] {
+    guard n > 0, values.count > n else { return values }
+    let size = Double(values.count) / Double(n)
+    return (0..<n).map { i in
+        let a = Int(Double(i) * size)
+        let b = min(values.count, max(a + 1, Int(Double(i + 1) * size)))
+        return values[a..<b].max() ?? 0
+    }
+}
+
 enum Theme {
     static func nsColor(_ tint: SeriesTint, item: ItemConfig) -> NSColor {
         switch tint {

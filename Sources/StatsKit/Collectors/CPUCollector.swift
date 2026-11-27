@@ -11,7 +11,7 @@ final class CPUCollector {
     private let efficiencyCores = Sysctl.int("hw.perflevel1.logicalcpu") ?? 0
 
     /// Returns nil on the first call (it needs two readings) or on error.
-    func sample(threadCount: Int) -> CPUSnapshot? {
+    func sample() -> CPUSnapshot? {
         guard let ticks = readTicks() else { return nil }
         defer { previous = ticks }
         guard previous.count == ticks.count, !ticks.isEmpty else { return nil }
@@ -33,13 +33,37 @@ final class CPUCollector {
 
         var loads = [Double](repeating: 0, count: 3)
         _ = getloadavg(&loads, 3)
-        let processCount = max(0, Int(proc_listallpids(nil, 0)))
+        let counts = taskAndThreadCounts()
 
         return CPUSnapshot(user: total.user, system: total.system, idle: total.idle, cores: cores,
                            performanceCores: hasLevels ? performanceCores : 0,
                            efficiencyCores: hasLevels ? efficiencyCores : 0,
                            load1: loads[0], load5: loads[1], load15: loads[2],
-                           processCount: processCount, threadCount: threadCount, uptime: uptime())
+                           processCount: counts.tasks, threadCount: counts.threads, uptime: uptime())
+    }
+
+    /// Host-wide process and thread counts (all users, root included) from the default processor set.
+    private func taskAndThreadCounts() -> (tasks: Int, threads: Int) {
+        var pset: processor_set_name_t = 0
+        guard processor_set_default(host, &pset) == KERN_SUCCESS else { return (countPIDs(), 0) }
+        defer { mach_port_deallocate(mach_task_self_, pset) }
+        var info = processor_set_load_info()
+        var count = mach_msg_type_number_t(MemoryLayout<processor_set_load_info>.size / MemoryLayout<integer_t>.size)
+        let kr = withUnsafeMutablePointer(to: &info) { ptr in
+            ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                processor_set_statistics(pset, PROCESSOR_SET_LOAD_INFO, $0, &count)
+            }
+        }
+        guard kr == KERN_SUCCESS else { return (countPIDs(), 0) }
+        return (Int(info.task_count), Int(info.thread_count))
+    }
+
+    /// Fallback: the number of pids actually returned (not the buffer-size estimate).
+    private func countPIDs() -> Int {
+        let estimate = Int(proc_listallpids(nil, 0))
+        guard estimate > 0 else { return 0 }
+        var pids = [Int32](repeating: 0, count: estimate + 64)
+        return max(0, Int(proc_listallpids(&pids, Int32(pids.count * MemoryLayout<Int32>.size))))
     }
 
     var coreCount: Int { previous.count }

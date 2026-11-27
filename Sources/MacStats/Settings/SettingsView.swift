@@ -23,6 +23,8 @@ final class SettingsWindowController {
 
     init(model: AppModel) { self.model = model }
 
+    func applyAppearance() { window?.appearance = model.nsAppearance }
+
     func show(itemID: String?) {
         if let itemID {
             router.tab = .items
@@ -37,6 +39,7 @@ final class SettingsWindowController {
             w.center()
             window = w
         }
+        window?.appearance = model.nsAppearance
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
     }
@@ -235,7 +238,15 @@ private struct ItemDetail: View {
     @Environment(AppModel.self) var model
 
     var body: some View {
-        let item = model.config.item(id: itemID)!
+        if let item = model.config.item(id: itemID) {
+            form(item)
+        } else {
+            Text("Pick an item on the left.").foregroundStyle(.secondary).padding(.top, 40)
+        }
+    }
+
+    @ViewBuilder
+    private func form(_ item: ItemConfig) -> some View {
         let p = model.presenter(item)
         Form {
             Section {

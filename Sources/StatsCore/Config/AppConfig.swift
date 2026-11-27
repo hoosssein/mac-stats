@@ -72,14 +72,33 @@ public struct ItemConfig: Codable, Equatable, Identifiable, Sendable {
         summaryStyle = (try? c.decodeIfPresent(SummaryStyle.self, forKey: .summaryStyle)) ?? base.summaryStyle
         showLabel = try c.decodeIfPresent(Bool.self, forKey: .showLabel) ?? base.showLabel
         valueShown = try c.decodeIfPresent(Int.self, forKey: .valueShown) ?? base.valueShown
-        menuBarChartSeconds = try c.decodeIfPresent(Int.self, forKey: .menuBarChartSeconds) ?? base.menuBarChartSeconds
+        menuBarChartSeconds = ItemConfig.allowed((try? c.decodeIfPresent(Int.self, forKey: .menuBarChartSeconds)) ?? nil,
+                                                 ItemConfig.menuBarChartSecondsOptions, base.menuBarChartSeconds)
         menuRange = (try? c.decodeIfPresent(ChartRange.self, forKey: .menuRange)) ?? base.menuRange
-        sampleSeconds = try c.decodeIfPresent(Int.self, forKey: .sampleSeconds) ?? base.sampleSeconds
-        breakdownRows = try c.decodeIfPresent(Int.self, forKey: .breakdownRows) ?? base.breakdownRows
+        sampleSeconds = ItemConfig.allowed((try? c.decodeIfPresent(Int.self, forKey: .sampleSeconds)) ?? nil,
+                                           ItemConfig.sampleSecondsOptions, base.sampleSeconds)
+        breakdownRows = ItemConfig.allowed((try? c.decodeIfPresent(Int.self, forKey: .breakdownRows)) ?? nil,
+                                           ItemConfig.breakdownRowsOptions, base.breakdownRows)
         color = (try? c.decodeIfPresent(ItemColor.self, forKey: .color)) ?? base.color
         customLabel = try c.decodeIfPresent(String.self, forKey: .customLabel)
         if !base.descriptor.valueOptions.indices.contains(valueShown) { valueShown = 0 }
     }
+
+    // Allowed values (docs/kb/configuration.md section 2). Anything else falls back to the default.
+    public static let menuBarChartSecondsOptions = [30, 60, 120]
+    public static let sampleSecondsOptions = [1, 2, 5]
+    public static let breakdownRowsOptions = [5, 8, 12]
+
+    static func allowed(_ value: Int?, _ options: [Int], _ fallback: Int) -> Int {
+        guard let value, options.contains(value) else { return fallback }
+        return value
+    }
+}
+
+/// Decodes one array element and keeps nil instead of failing the whole array.
+private struct Lossy<T: Decodable>: Decodable {
+    let value: T?
+    init(from decoder: Decoder) throws { value = try? T(from: decoder) }
 }
 
 public struct MenuConfig: Codable, Equatable, Sendable {
@@ -179,7 +198,12 @@ public struct AppConfig: Codable, Equatable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         version = (try? c.decodeIfPresent(Int.self, forKey: .version)) ?? AppConfig.currentVersion
         showStatsIcon = (try? c.decodeIfPresent(Bool.self, forKey: .showStatsIcon)) ?? false
-        items = (try? c.decodeIfPresent([ItemConfig].self, forKey: .items)) ?? AppConfig.defaultItems
+        // One bad item is skipped; it does not throw away the whole list.
+        if let list = try? c.decodeIfPresent([Lossy<ItemConfig>].self, forKey: .items) {
+            items = list.compactMap(\.value)
+        } else {
+            items = AppConfig.defaultItems
+        }
         menu = (try? c.decodeIfPresent(MenuConfig.self, forKey: .menu)) ?? MenuConfig()
         general = (try? c.decodeIfPresent(GeneralConfig.self, forKey: .general)) ?? GeneralConfig()
         history = (try? c.decodeIfPresent(HistoryConfig.self, forKey: .history)) ?? HistoryConfig()

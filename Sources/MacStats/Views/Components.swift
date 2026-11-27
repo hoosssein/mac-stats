@@ -189,8 +189,7 @@ struct Sparkline: View {
             }
             let mx = maxValue ?? max((values.max() ?? 1) * 1.15, 1e-9)
             if bars {
-                let n = min(values.count, Int(size.width / 3))
-                for (i, v) in values.suffix(n).enumerated() {
+                for (i, v) in resampleMax(values, to: Int(size.width / 3)).enumerated() {
                     let h = max(1, CGFloat(min(1, v / mx)) * size.height)
                     ctx.fill(Path(CGRect(x: CGFloat(i) * 3, y: size.height - h, width: 2, height: h)), with: .color(color))
                 }
@@ -225,16 +224,20 @@ struct Sparkline: View {
     }
 }
 
-/// A scale number drawn inside a chart, with a light outline for contrast.
+/// A scale number drawn inside a chart, with a light outline around the text for contrast.
 struct ScaleLabel: View {
     let text: String
 
     var body: some View {
+        let halo = Color(nsColor: .windowBackgroundColor)
         Text(text)
             .font(Theme.scaleFont)
             .foregroundStyle(.secondary)
+            .shadow(color: halo, radius: 0, x: 1, y: 0)
+            .shadow(color: halo, radius: 0, x: -1, y: 0)
+            .shadow(color: halo, radius: 0, x: 0, y: 1)
+            .shadow(color: halo, radius: 0, x: 0, y: -1)
             .padding(.horizontal, 2)
-            .background(RoundedRectangle(cornerRadius: 2).fill(Color(nsColor: .windowBackgroundColor).opacity(0.7)))
     }
 }
 

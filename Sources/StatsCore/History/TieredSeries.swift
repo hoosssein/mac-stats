@@ -42,8 +42,22 @@ public struct RingBuffer<Element: Sendable>: Sendable {
 
     /// The newest `n` elements, oldest first.
     public func suffix(_ n: Int) -> [Element] {
-        let all = elements
-        return Array(all.suffix(n))
+        guard n > 0 else { return [] }
+        return Array(elements.suffix(n))
+    }
+
+    /// Newest elements while `keep` holds, scanning from the newest backwards. Returned oldest first.
+    public func newest(while keep: (Element) -> Bool) -> [Element] {
+        var out: [Element] = []
+        let n = storage.count
+        guard n > 0 else { return out }
+        let newestIndex = n < capacity ? n - 1 : (head - 1 + capacity) % capacity
+        for k in 0..<n {
+            let e = storage[(newestIndex - k + capacity) % capacity]
+            if !keep(e) { break }
+            out.append(e)
+        }
+        return out.reversed()
     }
 }
 
@@ -140,9 +154,19 @@ public struct TieredSeries: Sendable {
         return all
     }
 
-    /// Completed buckets of a tier that start after `t` (for saving to disk).
+    /// Completed buckets of a tier that start after `t` (for saving to disk). Scans only the new ones.
     public func completedBuckets(tier: Int, after t: Double) -> [Bucket] {
-        completed[tier].elements.filter { $0.t > t }
+        completed[tier].newest { $0.t > t }
+    }
+
+    /// A copy with a different "keep history for" setting. Keeps every bucket that still fits.
+    public func resized(keepDays: Int) -> TieredSeries {
+        var n = TieredSeries(keepDays: keepDays)
+        for tier in specs.indices {
+            for b in completed[tier].elements { n.completed[tier].append(b) }
+            n.open[tier] = open[tier]
+        }
+        return n
     }
 
     /// Loads saved buckets into a tier. Buckets must be oldest first and older than anything already recorded.
@@ -156,9 +180,19 @@ public struct TieredSeries: Sendable {
         completed[tier] = ring
     }
 
-    /// The newest values of the raw tier (averages), oldest first. Used for menu bar sparklines.
+    /// The newest values of the raw tier (averages), oldest first.
     public func recent(_ n: Int) -> [Double] {
-        buckets(tier: 0).suffix(n).map(\.avg)
+        guard n > 0 else { return [] }
+        return buckets(tier: 0).suffix(n).map(\.avg)
+    }
+
+    /// Raw values from the last `seconds` before `now`, oldest first. Used for menu bar sparklines,
+    /// so "Last 1 min" means one minute whatever the sampling interval.
+    public func recent(seconds: Double, now: Double) -> [Double] {
+        guard seconds > 0 else { return [] }
+        var out = completed[0].newest { $0.t > now - seconds }.map(\.avg)
+        if let b = open[0], b.t > now - seconds { out.append(b.avg) }
+        return out
     }
 
     public var latest: Double? { open[0]?.avg ?? completed[0].last?.avg }
@@ -219,6 +253,24 @@ public struct HistoryStore: Sendable {
         series[key]?.recent(count) ?? []
     }
 
+    public func recent(_ key: String, seconds: Double, now: Double) -> [Double] {
+        series[key]?.recent(seconds: seconds, now: now) ?? []
+    }
+
+    /// Completed buckets of tiers 1–3 not saved yet. `marks[key][tier]` is the newest saved start time
+    /// for that series and tier; it is tracked per series because series close buckets at different times.
+    public func unsaved(after marks: [String: [Int: Double]]) -> [(key: String, tier: Int, bucket: Bucket)] {
+        var out: [(key: String, tier: Int, bucket: Bucket)] = []
+        for (key, s) in series {
+            for tier in 1..<s.specs.count {
+                for b in s.completedBuckets(tier: tier, after: marks[key]?[tier] ?? -.infinity) {
+                    out.append((key, tier, b))
+                }
+            }
+        }
+        return out
+    }
+
     public func latest(_ key: String) -> Double? { series[key]?.latest }
 
     public mutating func removeAll() { series.removeAll() }
@@ -227,13 +279,7 @@ public struct HistoryStore: Sendable {
     public mutating func setKeepDays(_ days: Int) {
         guard days != keepDays else { return }
         keepDays = days
-        var next: [String: TieredSeries] = [:]
-        for (k, s) in series {
-            var n = TieredSeries(keepDays: days)
-            for tier in 0..<s.specs.count { n.restore(tier: tier, buckets: s.buckets(tier: tier)) }
-            next[k] = n
-        }
-        series = next
+        series = series.mapValues { $0.resized(keepDays: days) }
     }
 
     public mutating func restore(key: String, tier: Int, buckets: [Bucket]) {

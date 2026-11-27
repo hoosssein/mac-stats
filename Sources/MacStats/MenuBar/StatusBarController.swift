@@ -8,7 +8,7 @@ final class StatusBarController: NSObject {
     private let model: AppModel
     private var items: [String: NSStatusItem] = [:]
     private var order: [String] = []
-    private var lastAppearance: String = ""
+    private var appearanceObservation: NSKeyValueObservation?
     /// Called when an item is clicked: item id ("all" for the Mac Stats icon), its button, and whether ⌥ was held.
     var onClick: ((String, NSStatusBarButton, Bool) -> Void)?
 
@@ -45,6 +45,10 @@ final class StatusBarController: NSObject {
             items[id] = item
         }
         order = wanted
+        // Redraw at once when the menu bar switches between light and dark.
+        appearanceObservation = items.values.first?.button?.observe(\.effectiveAppearance) { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.redraw(force: true) }
+        }
         redraw(force: true)
     }
 

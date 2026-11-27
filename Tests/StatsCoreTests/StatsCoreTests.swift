@@ -297,3 +297,64 @@ final class PresenterTests: XCTestCase {
         XCTAssertEqual(du.model(.largestFolders).action, .scanFolders)
     }
 }
+
+/// Regression tests for the independent review findings.
+final class ReviewFixTests: XCTestCase {
+    func testBadItemValuesFallBackToDefaults() throws {
+        let json = #"{"items":[{"id":"cpu","kind":"cpu","menuBarChartSeconds":-5,"sampleSeconds":0,"breakdownRows":-1}]}"#
+        let c = try ConfigStore.decode(Data(json.utf8))
+        XCTAssertEqual(c.items[0].menuBarChartSeconds, 60)
+        XCTAssertEqual(c.items[0].sampleSeconds, 1)
+        XCTAssertEqual(c.items[0].breakdownRows, 8)
+        XCTAssertEqual(HistoryStore().recent("x", count: -3), [])
+        XCTAssertEqual(RingBuffer<Int>(capacity: 2).suffix(-1), [])
+    }
+
+    func testOneBadItemDoesNotDropTheList() throws {
+        let json = #"{"items":[{"id":"cpu","kind":"cpu"},{"id":"bad","kind":"cpu","showInMenuBar":"yes"},{"id":"mem","kind":"memory"}]}"#
+        let c = try ConfigStore.decode(Data(json.utf8))
+        XCTAssertEqual(c.items.map(\.id), ["cpu", "mem"])
+    }
+
+    func testSlowSeriesAreSaved() {
+        // CPU every second, disk usage every 10 minutes, for 3 hours.
+        var h = HistoryStore()
+        var marks: [String: [Int: Double]] = [:]
+        var saved: [String: Int] = [:]
+        for t in stride(from: 0.0, through: 3 * 3600, by: 1) {
+            var v = ["cpu.main": 10.0]
+            if Int(t) % 600 == 0 { v["du.used"] = 500 }
+            h.record(v, at: t)
+            if Int(t) % 30 == 0 {
+                for row in h.unsaved(after: marks) {
+                    saved[row.key, default: 0] += 1
+                    marks[row.key, default: [:]][row.tier] = max(marks[row.key]?[row.tier] ?? -.infinity, row.bucket.t)
+                }
+            }
+        }
+        XCTAssertGreaterThan(saved["cpu.main"] ?? 0, 1000)
+        XCTAssertGreaterThan(saved["du.used"] ?? 0, 30)
+        // Nothing is saved twice.
+        XCTAssertTrue(h.unsaved(after: marks).isEmpty)
+    }
+
+    func testRecentBySeconds() {
+        var s = TieredSeries()
+        for t in stride(from: 0.0, through: 120, by: 2) { s.append(t, at: t) }
+        let last = s.recent(seconds: 60, now: 120)
+        XCTAssertEqual(last.count, 30)
+        XCTAssertEqual(last.last, 120)
+    }
+
+    func testResizeKeepsOpenBucketWithoutDuplicates() {
+        var h = HistoryStore(keepDays: 30)
+        for t in 0..<25 { h.record(["k": Double(t)], at: Double(t)) }
+        let before = h.series["k"]!.buckets(tier: 1).map(\.t)
+        h.setKeepDays(7)
+        h.record(["k": 99], at: 25)
+        let after = h.series["k"]!.buckets(tier: 1).map(\.t)
+        XCTAssertEqual(before, [0, 10, 20])
+        XCTAssertEqual(after, [0, 10, 20])
+        XCTAssertEqual(Set(after).count, after.count)
+    }
+}
